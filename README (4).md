@@ -21,7 +21,7 @@ A personal business dashboard to track daily sales, expenses, stock, and due pay
 
 ## Live Demo
 
-> Hosted via GitHub Pages: `https://<your-username>.github.io/<repo-name>`
+> Hosted via GitHub Pages: `(https://ashikscript.github.io/business-dashboard/)`
 
 ## Getting Started
 

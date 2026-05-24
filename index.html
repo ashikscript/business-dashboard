@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Business Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <h2>🔐 DASHBOARD</h2>
+    <p>Enter your PIN to continue</p>
+    <input type="password" id="pinInput" maxlength="6" placeholder="● ● ● ●" inputmode="numeric" />
+    <button class="btn-primary" onclick="checkLogin()">Enter</button>
+    <div class="login-error" id="loginErr">Wrong PIN. Try again.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="top-bar">
+    <div class="logo">📊 BIZ DASHBOARD</div>
+    <div class="top-right">
+      <span id="todayLabel" style="font-size:12px;color:var(--muted);font-family:var(--mono);"></span>
+      <button class="logout-btn" onclick="logout()">🔒 Lock</button>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('today',this)">Today</button>
+    <button class="nav-tab" onclick="switchTab('history',this)">History</button>
+    <button class="nav-tab" onclick="switchTab('due',this)">Due</button>
+    <button class="nav-tab" onclick="switchTab('stock',this)">Stock</button>
+    <button class="nav-tab" onclick="switchTab('expense',this)">Expense</button>
+    <button class="nav-tab" onclick="switchTab('reports',this)">Reports</button>
+    <button class="nav-tab" onclick="switchTab('trash',this)">Trash</button>
+    <button class="nav-tab" onclick="switchTab('settings',this)">Settings</button>
+  </div>
+
+  <!-- TODAY TAB -->
+  <div id="tab-today" class="page active">
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="form-section">
+      <div class="sec-title">Add Sale</div>
+      <div class="form-row">
+        <div class="form-group"><label>Description</label><input type="text" id="f-desc" placeholder="Product name"/></div>
+        <div class="form-group" style="max-width:110px;"><label>Amount (৳)</label><input type="number" id="f-amt" placeholder="0" min="0" oninput="syncSaleProfit()"/></div>
+        <div class="form-group" style="max-width:110px;"><label>Profit (৳)</label><input type="number" id="f-profit" placeholder="0" min="0" oninput="syncSaleCost()" style="border-color:var(--accent2);"/></div>
+        <div class="form-group" style="max-width:110px;"><label style="color:var(--muted);">Cost (auto)</label><input type="number" id="f-cost" placeholder="auto" min="0" readonly style="opacity:0.5;cursor:not-allowed;"/></div>
+        <div class="form-group" style="max-width:120px;"><label>Channel</label>
+          <select id="f-chan"><option value="website">Website</option><option value="telegram">Telegram</option></select>
+        </div>
+        <button class="add-btn" onclick="addSale()">+ Add</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec-title">Recent Sales Today</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Description</th><th>Channel</th><th>Amount</th><th>Cost</th><th>Profit</th><th>Time</th><th>Actions</th></tr></thead>
+          <tbody id="todayTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div id="tab-history" class="page">
+    <div class="filter-bar">
+      <input type="date" id="histDate" onchange="renderHistory()"/>
+      <select id="histChan" onchange="renderHistory()">
+        <option value="">All Channels</option>
+        <option value="website">Website</option>
+        <option value="telegram">Telegram</option>
+      </select>
+    </div>
+    <div id="histSummary" style="margin-bottom:1rem;"></div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Description</th><th>Channel</th><th>Amount</th><th>Cost</th><th>Profit</th><th>Time</th><th>Actions</th></tr></thead>
+          <tbody id="histTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- DUE TAB -->
+  <div id="tab-due" class="page">
+    <div class="due-cards">
+      <div class="due-card"><div class="sum-label">WhatsApp Due</div><div class="due-big red" id="waDue">৳0</div></div>
+      <div class="due-card"><div class="sum-label">Telegram Due</div><div class="due-big red" id="tgDue">৳0</div></div>
+    </div>
+    <div class="form-section">
+      <div class="sec-title">Update Due</div>
+      <div class="form-row">
+        <div class="form-group" style="max-width:130px;"><label>Platform</label>
+          <select id="due-platform"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram</option></select>
+        </div>
+        <div class="form-group" style="max-width:120px;"><label>Amount (৳)</label><input type="number" id="due-amt" placeholder="0" min="0"/></div>
+        <div class="form-group" style="max-width:130px;"><label>Action</label>
+          <select id="due-action">
+            <option value="add">+ Add Due</option>
+            <option value="clear">- Clear (partial)</option>
+            <option value="set">Set Amount</option>
+            <option value="zero">Set to Zero</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Note</label><input type="text" id="due-note" placeholder="Optional note"/></div>
+        <button class="add-btn" onclick="updateDue()">Update</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec-title">Due Log</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Platform</th><th>Action</th><th>Amount</th><th>Note</th><th>Actions</th></tr></thead>
+          <tbody id="dueTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- STOCK TAB -->
+  <div id="tab-stock" class="page">
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="sec-title">Total Stock Value</div>
+      <div class="stock-val" id="stockDisplay">৳0</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;">Available inventory in taka</div>
+    </div>
+    <div class="form-section">
+      <div class="sec-title">Update Stock</div>
+      <div class="form-row">
+        <div class="form-group" style="max-width:130px;"><label>Action</label>
+          <select id="stock-action"><option value="add">Add Stock</option><option value="remove">Remove Stock</option><option value="set">Set Total</option></select>
+        </div>
+        <div class="form-group" style="max-width:130px;"><label>Amount (৳)</label><input type="number" id="stock-amt" placeholder="0" min="0"/></div>
+        <div class="form-group"><label>Note</label><input type="text" id="stock-note" placeholder="Optional"/></div>
+        <button class="add-btn" onclick="updateStock()">Update</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec-title">Stock Log</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Action</th><th>Amount</th><th>Note</th><th>Balance</th><th>Actions</th></tr></thead>
+          <tbody id="stockTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SUPPLIER DUE -->
+    <div class="card" style="border-color:rgba(255,201,71,.25);">
+      <div class="sec-title" style="color:var(--amber);">⚠️ Supplier Due (আমার বাকি)</div>
+      <div class="due-cards" style="margin-bottom:1rem;" id="supplierDueCards"></div>
+      <div class="sec-title">Update Supplier Due</div>
+      <div class="form-row">
+        <div class="form-group" style="max-width:150px;"><label>Supplier</label>
+          <select id="sup-name">
+            <option value="supplier1">Supplier 1</option>
+            <option value="supplier2">Supplier 2</option>
+          </select>
+        </div>
+        <div class="form-group" style="max-width:120px;"><label>Action</label>
+          <select id="sup-action">
+            <option value="add">+ মাল কিনলাম (বাকি বাড়লো)</option>
+            <option value="paid">- পেমেন্ট দিলাম</option>
+            <option value="zero">সব পরিশোধ</option>
+          </select>
+        </div>
+        <div class="form-group" style="max-width:120px;"><label>Amount (৳)</label>
+          <input type="number" id="sup-amt" placeholder="0" min="0"/>
+        </div>
+        <div class="form-group"><label>Note</label>
+          <input type="text" id="sup-note" placeholder="কী কিনলাম / কোথায় দিলাম"/>
+        </div>
+        <button class="add-btn" onclick="updateSupplierDue()" style="background:var(--amber);color:#000;">Update</button>
+      </div>
+      <div style="margin-top:1rem;">
+        <div class="sec-title">Supplier Log</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Supplier</th><th>Action</th><th>Amount</th><th>Note</th><th>Balance</th><th></th></tr></thead>
+            <tbody id="supplierTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPENSE TAB -->
+  <div id="tab-expense" class="page">
+    <div class="summary-grid" id="expSummaryGrid" style="margin-bottom:1rem;"></div>
+    <div class="form-section">
+      <div class="sec-title">Add Expense</div>
+      <div class="form-row">
+        <div class="form-group"><label>Description</label><input type="text" id="exp-desc" placeholder="What did you spend on?"/></div>
+        <div class="form-group" style="max-width:120px;"><label>Amount (৳)</label><input type="number" id="exp-amt" placeholder="0" min="0"/></div>
+        <div class="form-group" style="max-width:130px;"><label>Category</label>
+          <select id="exp-cat">
+            <option value="product">Product</option><option value="transport">Transport</option>
+            <option value="ads">Ads/Marketing</option><option value="tools">Tools/Software</option>
+            <option value="personal">Personal</option><option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Note / Where</label><input type="text" id="exp-note" placeholder="e.g. Daraz, bKash..."/></div>
+        <button class="add-btn" onclick="addExpense()" style="background:var(--accent3);">+ Add</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input type="date" id="expDate" onchange="renderExpenseList()"/>
+      <select id="expCatFilter" onchange="renderExpenseList()">
+        <option value="">All Categories</option>
+        <option value="product">Product</option><option value="transport">Transport</option>
+        <option value="ads">Ads/Marketing</option><option value="tools">Tools/Software</option>
+        <option value="personal">Personal</option><option value="other">Other</option>
+      </select>
+      <button class="filter-btn" onclick="setExpView('all',this)">All Time</button>
+      <button class="filter-btn active" onclick="setExpView('today',this)">Today</button>
+      <button class="filter-btn" onclick="setExpView('month',this)">This Month</button>
+    </div>
+    <div class="card">
+      <div class="sec-title">Expense Log</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Note/Where</th><th>Time</th><th>Actions</th></tr></thead>
+          <tbody id="expTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORTS TAB -->
+  <div id="tab-reports" class="page">
+    <div class="filter-bar" style="margin-bottom:1rem;">
+      <button class="filter-btn active" onclick="setReportView('weekly',this)">Weekly</button>
+      <button class="filter-btn" onclick="setReportView('monthly',this)">Monthly</button>
+      <button class="filter-btn" onclick="setReportView('yearly',this)">Yearly</button>
+    </div>
+    <div id="reportContent"></div>
+  </div>
+
+  <!-- TRASH TAB -->
+  <div id="tab-trash" class="page">
+    <div class="trash-notice">🗑 Deleted items stay here for 30 days, then auto-remove. You can restore anytime.</div>
+    <div class="card" style="margin-top:0.75rem;">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Deleted On</th><th>Type</th><th>Description</th><th>Amount</th><th>Expires</th><th>Actions</th></tr></thead>
+          <tbody id="trashTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div id="tab-settings" class="page">
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="sec-title">Change PIN</div>
+      <div class="form-row" style="margin-top:8px;">
+        <div class="form-group" style="max-width:140px;"><label>New PIN</label><input type="password" id="newPin" maxlength="6" placeholder="Enter PIN" inputmode="numeric"/></div>
+        <div class="form-group" style="max-width:140px;"><label>Confirm PIN</label><input type="password" id="confirmPin" maxlength="6" placeholder="Confirm PIN" inputmode="numeric"/></div>
+        <button class="add-btn" onclick="changePin()" style="background:var(--accent2);color:#000;">Save PIN</button>
+      </div>
+      <div id="pinMsg" style="font-size:12px;margin-top:8px;"></div>
+    </div>
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="sec-title">Supplier Names</div>
+      <div class="form-row" style="margin-top:8px;">
+        <div class="form-group"><label>Supplier 1 Name</label><input type="text" id="sup1NameInput" placeholder="e.g. Rahim Bhai"/></div>
+        <div class="form-group"><label>Supplier 2 Name</label><input type="text" id="sup2NameInput" placeholder="e.g. Karim Store"/></div>
+        <button class="add-btn" onclick="saveSupplierNames()" style="background:var(--amber);color:#000;">Save Names</button>
+      </div>
+      <div id="supNameMsg" style="font-size:12px;margin-top:8px;"></div>
+    </div>
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="sec-title">Daily Reset Info</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:0.5rem;">Sales data archives at midnight automatically. History tab-এ সব পুরনো data থাকে।</p>
+      <div style="font-size:12px;color:var(--muted);">Last reset: <span id="lastReset" style="color:var(--text);font-family:var(--mono);"></span></div>
+    </div>
+    <div class="card" style="margin-bottom:1rem;border-color:rgba(0,229,160,.25);">
+      <div class="sec-title" style="color:var(--accent2);">💾 Backup & Restore</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:1rem;">Data download করুন বা পুরনো backup restore করুন। প্রতিদিন midnight এ auto-backup হয় Firebase এ।</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="add-btn" onclick="downloadBackup()" style="background:var(--accent2);color:#000;">⬇️ Download Backup</button>
+        <label class="add-btn" style="background:var(--accent);cursor:pointer;display:inline-flex;align-items:center;">
+          ⬆️ Restore Backup
+          <input type="file" accept=".json" onchange="restoreBackup(this)" style="display:none;"/>
+        </label>
+      </div>
+      <div id="backupMsg" style="font-size:12px;margin-top:10px;"></div>
+    </div>
+    <div class="card">
+      <div class="sec-title" style="color:var(--accent3);">⚠️ Danger Zone</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:0.75rem;">Clear ALL data permanently. Cannot be undone. You must enter your PIN to confirm.</p>
+      <div class="form-row" style="margin-bottom:0;">
+        <div class="form-group" style="max-width:160px;">
+          <label>Enter PIN to confirm</label>
+          <input type="password" id="dangerPin" maxlength="6" placeholder="Your PIN" inputmode="numeric"/>
+        </div>
+        <button class="btn-sec btn-danger" onclick="clearAllData()" style="align-self:flex-end;">🗑 Clear All Data</button>
+      </div>
+      <div id="dangerMsg" style="font-size:12px;margin-top:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div id="siteFooter" style="display:none;">
+  <div class="footer-inner">
+    <span>© 2025 Biz Dashboard. All rights reserved.</span>
+    <span class="footer-sep">·</span>
+    <span>Built for personal business use only.</span>
+  </div>
+</div>
+
+<!-- EDIT MODAL (Sale) -->
+<div class="modal-overlay" id="editModal" style="display:none;" onclick="closeModal('editModal',event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">✏️ Edit Sale</div>
+    <div class="form-group" style="margin-bottom:8px;"><label>Description</label><input type="text" id="edit-desc"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Amount (৳)</label><input type="number" id="edit-amt" min="0"/></div>
+      <div class="form-group"><label>Cost (৳)</label><input type="number" id="edit-cost" min="0"/></div>
+    </div>
+    <div class="form-group" style="margin-top:8px;"><label>Channel</label>
+      <select id="edit-chan"><option value="website">Website</option><option value="telegram">Telegram</option></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-sec" onclick="closeModal('editModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto;padding:8px 18px;" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL (Expense) -->
+<div class="modal-overlay" id="editExpModal" style="display:none;" onclick="closeModal('editExpModal',event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">✏️ Edit Expense</div>
+    <div class="form-group" style="margin-bottom:8px;"><label>Description</label><input type="text" id="editexp-desc"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Amount (৳)</label><input type="number" id="editexp-amt" min="0"/></div>
+      <div class="form-group"><label>Category</label>
+        <select id="editexp-cat">
+          <option value="product">Product</option><option value="transport">Transport</option>
+          <option value="ads">Ads/Marketing</option><option value="tools">Tools/Software</option>
+          <option value="personal">Personal</option><option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:8px;"><label>Note / Where</label><input type="text" id="editexp-note"/></div>
+    <div class="modal-actions">
+      <button class="btn-sec" onclick="closeModal('editExpModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto;padding:8px 18px;" onclick="saveExpEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL (Due Log) -->
+<div class="modal-overlay" id="editDueModal" style="display:none;" onclick="closeModal('editDueModal',event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">✏️ Edit Due Entry</div>
+    <div class="form-row">
+      <div class="form-group"><label>Amount (৳)</label><input type="number" id="editdue-amt" min="0"/></div>
+      <div class="form-group"><label>Note</label><input type="text" id="editdue-note"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-sec" onclick="closeModal('editDueModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto;padding:8px 18px;" onclick="saveDueEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL (Stock Log) -->
+<div class="modal-overlay" id="editStockModal" style="display:none;" onclick="closeModal('editStockModal',event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">✏️ Edit Stock Entry</div>
+    <div class="form-row">
+      <div class="form-group"><label>Amount (৳)</label><input type="number" id="editstock-amt" min="0"/></div>
+      <div class="form-group"><label>Note</label><input type="text" id="editstock-note"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-sec" onclick="closeModal('editStockModal')">Cancel</button>
+      <button class="btn-primary" style="width:auto;padding:8px 18px;" onclick="saveStockEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
